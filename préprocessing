@@ -1,0 +1,87 @@
+import pandas as pd
+
+##Preprocessing
+#DATA 2015
+
+root_path = '/Users/Nawys/Documents/DATASCIENTEST/MProjectCO2/RAWDATA'
+data_2015 = f'{root_path}/data2015.csv'
+
+df_2015 = pd.read_csv(data_2015, sep=';',encoding='latin1')
+
+print(df_2015.head())
+print(df_2015.isna().sum())
+
+df_2015=df_2015.drop(columns=['lib_mod_doss', 'mrq_utac', 'mod_utac','puiss_heure','hc', 
+                      'nox', 'hcnox', 'ptcl','lib_mrq_doss','tvv','dscom'])
+
+
+print(df_2015.isna().sum())
+print(df_2015.describe())
+print(df_2015.dtypes)
+
+#Remplacement des NaN par les médianes respectives
+df_2015[['puiss_max','conso_urb_93','conso_exurb','conso_mixte','co2_mixte','co_typ_1']] = df_2015[['puiss_max','conso_urb_93','conso_exurb','conso_mixte','co2_mixte','co_typ_1']].fillna(df_2015[['puiss_max','conso_urb_93','conso_exurb','conso_mixte','co2_mixte','co_typ_1']].median())
+
+
+print(df_2015.isna().sum())
+
+# Vérifier les doublons dans toutes les colonnes
+duplicates = df_2015.duplicated()
+
+# Compter le nombre de doublons
+print("Nombre de doublons :", duplicates.sum())
+#Pas de doublons
+
+from sklearn.preprocessing import OneHotEncoder
+encoder = OneHotEncoder()
+encoded=encoder.fit_transform(df_2015[['energ','hybride','typ_boite_nb_rapp']])
+encoded_df_2015=pd.DataFrame(encoded.toarray(),columns=encoder.get_feature_names_out(['energ','hybride','typ_boite_nb_rapp']))
+df_2015_encoded=pd.concat([df_2015,encoded_df_2015], axis=1)
+df_2015_encoded.head()
+df_2015_encoded=df_2015_encoded.drop(columns=['energ','hybride','typ_boite_nb_rapp'])
+
+nouveaux_noms={'hybride_non ':'non_hybride','hybride_oui ':'hybride'}
+df_2015_encoded=df_2015_encoded.rename(columns=nouveaux_noms)
+
+import seaborn as sns 
+sns.pairplot(df_2015_encoded)
+#trop gros volume ne charge pas
+
+sns.displot(df_2015, x="co2_mixte", hue="energ", stat="density")
+sns.displot(df_2015, x="co2_mixte", hue="hybride", stat="density")
+sns.displot(df_2015, x="co2_mixte", hue="typ_boite_nb_rapp", stat="density")
+
+sns.jointplot(
+    data=df_2015,
+    x="co2_mixte", y="conso_mixte", hue="hybride",
+    kind="kde")                                                             
+
+sns.violinplot(data=df_2015, x="energ", y="co2_mixte")
+
+#DATA 2019
+
+root_path = '/Users/Nawys/Documents/DATASCIENTEST/MProjectCO2/RAWDATA'
+data_2019 = f'{root_path}/data2019.csv'
+
+df_2019 = pd.read_csv(data_2019)
+df_2019.head()
+
+df_2019.isna().sum()
+
+df_2019=df_2019.drop(columns=['Country','Mp','VFN','Man','MMS','Tan','Mk','Ct','Mt','Cn','Va','Ve','At2 (mm)','Ernedc (g/km)','De', 'Vf','Date of registration'])
+
+#Pour les NaN de Fm il n'y a pas de valeurs pour plusieurs autres variables : Ft = UNKNOWN etc
+df_2019=df_2019.dropna(subset=['Fm'])
+
+#Pour ces valeurs la médiane semblent être représentative des NaN
+median_2019 = df_2019[['m (kg)', 'Enedc (g/km)','Ewltp (g/km)', 'W (mm)', 'At1 (mm)','ec (cm3)', 'ep (KW)']].median()
+print(median_2019)
+df_2019[['m (kg)', 'Enedc (g/km)','Ewltp (g/km)', 'W (mm)', 'At1 (mm)','ec (cm3)', 'ep (KW)']] = df_2019[['m (kg)', 'Enedc (g/km)','Ewltp (g/km)', 'W (mm)', 'At1 (mm)','ec (cm3)', 'ep (KW)']].fillna(median_2019)
+df_2019.isna().sum()
+
+duplicates = df_2019.duplicated()
+df_2019.duplicated().sum()
+
+from pycaret.datasets import get_data
+from pycaret.regression import *
+reg = setup(data=df_2015, target = 'co2_mixte', session_id=123)
